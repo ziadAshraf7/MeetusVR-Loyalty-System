@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -15,8 +15,17 @@ export const Login = () => {
   const { login } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [adminForm, setAdminForm] = useState({ email: '', password: '' });
-  const [userForm, setUserForm] = useState({ email: '', password: '' });
+  const [adminForm, setAdminForm] = useState({ email: '', password: '' , isEmployee : true , orgId : 0  });
+  const [userForm, setUserForm] = useState({ email: '', password: '' , isEmployee : false , orgId : 0 });
+  const { user, isLoading : userLoading } = useAuth();
+
+
+  useEffect(() => {
+    if(user == null) return;
+    
+    if(user.role == 'admin') navigate('dashboard')
+      navigate('admin')
+  },[userLoading])
 
   const handleLogin = async (role: 'admin' | 'user') => {
     setIsLoading(true);
@@ -98,6 +107,16 @@ export const Login = () => {
                     onChange={(e) => setUserForm(prev => ({ ...prev, password: e.target.value }))}
                   />
                 </div>
+                <div className="space-y-2">
+                <Label htmlFor="user-password">organization id</Label>
+                <Input
+                    id="orgId"
+                    type="Number"
+                    placeholder="Enter your organization id"
+                    value={userForm.orgId}
+                    onChange={(e) => setUserForm(prev => ({ ...prev, orgId: Number(e.target.value)  }))}
+                  />
+                </div>
                 <Button
                   className="w-full bg-gradient-primary hover:shadow-glow"
                   onClick={() => handleLogin('user')}
@@ -127,6 +146,16 @@ export const Login = () => {
                     placeholder="Enter admin password"
                     value={adminForm.password}
                     onChange={(e) => setAdminForm(prev => ({ ...prev, password: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="user-password">organization id</Label>
+                  <Input
+                    id="orgId"
+                    type="number"
+                    placeholder="Enter your organization id"
+                    value={userForm.orgId}
+                    onChange={(e) => setUserForm(prev => ({ ...prev, orgId: Number(e.target.value)}))}
                   />
                 </div>
                 <Button

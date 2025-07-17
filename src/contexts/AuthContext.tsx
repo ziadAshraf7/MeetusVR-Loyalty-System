@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AuthContextType, User, LoginCredentials } from '@/types/auth';
-
+import axios from 'axios';
+import { nasnavApi, yeshteryApi } from '@/lib/utils';
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
@@ -35,21 +36,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (credentials: LoginCredentials, role: 'admin' | 'user') => {
     setIsLoading(true);
     try {
-      // Mock login - in real app, this would be an API call
-      const mockUser: User = {
-        id: Math.random().toString(36).substr(2, 9),
-        email: credentials.email,
-        role,
-        token: `mock-token-${Date.now()}`
-      };
+      
+      const mockUser: any = {
+        email:credentials.email,
+        password:credentials.password,
+        orgId:credentials.orgId,
+        isEmployee: credentials.isEmployee,
+        role : role
+    }
 
-      localStorage.setItem('userToken', mockUser.token);
+      const res = await axios.post(yeshteryApi + 'yeshtery/token' , mockUser)
+      const token = await res.data
+
+      localStorage.setItem('userToken', token.token);
       localStorage.setItem('userData', JSON.stringify({
         id: mockUser.id,
         email: mockUser.email,
-        role: mockUser.role
+        role: mockUser.role , 
+        orgId : credentials.orgId,
+        token : token.token 
       }));
-
+      mockUser.token = token?.token
       setUser(mockUser);
     } catch (error) {
       throw new Error('Login failed');

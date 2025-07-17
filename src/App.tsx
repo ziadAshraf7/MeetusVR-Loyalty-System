@@ -9,6 +9,7 @@ import { Login } from "@/pages/Login";
 import { UserDashboard } from "@/pages/UserDashboard";
 import { AdminDashboard } from "@/pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import { ShopCheckInLogin } from "@/pages/ShopCheckInLogin";
 
 const queryClient = new QueryClient();
 
@@ -37,15 +38,16 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
-            <Route path="/unauthorized" element={
+            {/* <Route path="/unauthorized" element={
               <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
                   <h1 className="text-2xl font-bold mb-4">Unauthorized Access</h1>
                   <p className="text-muted-foreground">You don't have permission to access this page.</p>
                 </div>
               </div>
-            } />
+            } /> */}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="/shop-checkin" element={<ShopCheckInLogin />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

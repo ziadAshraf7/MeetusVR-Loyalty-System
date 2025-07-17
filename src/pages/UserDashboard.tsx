@@ -20,11 +20,13 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LoyaltyUserPointsResponse, LoyaltyPointTransactionDTO, SharePointsRequest, CheckoutRewardDto } from '@/types/loyalty';
+import axios from 'axios';
+import { nasnavApi, yeshteryApi } from '@/lib/utils';
 
 export const UserDashboard = () => {
   const { user, logout } = useAuth();
   const { toast } = useToast();
-  const [userPoints, setUserPoints] = useState<LoyaltyUserPointsResponse>({ points: 1250 });
+  const [userPoints, setUserPoints] = useState<LoyaltyUserPointsResponse>({ points: 0 });
   const [spendablePoints, setSpendablePoints] = useState<LoyaltyPointTransactionDTO[]>([
     { id: '1', points: 500, transactionDate: '2024-01-15', description: 'Purchase reward' },
     { id: '2', points: 300, transactionDate: '2024-01-20', description: 'Bonus points' },
@@ -33,6 +35,38 @@ export const UserDashboard = () => {
   const [shareForm, setShareForm] = useState<SharePointsRequest>({ orgId: 1, email: '', points: 0 });
   const [orderAmount, setOrderAmount] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [walletRes , setWalletRes] = useState('');
+  const [isAppleWallet , setIsAppleWallet] = useState(false);
+  const [refreshPoints , setRefreshPoints] = useState(false);
+  async function getUserPoints() {
+    
+    try{
+      const res = await axios.get(nasnavApi + 'loyalty/points?org_id=' + user.orgId, {
+        headers: {
+          'Authorization': `Bearer ${user.token}`, 
+          'Content-Type': 'application/json'
+        }
+      });
+      const points = await res.data
+      setUserPoints(points)
+
+    }catch(error){
+      toast({
+        title: "fetch points failed",
+        description: "Please check your credentials and try again",
+        variant: "destructive",
+      });
+    }
+  }
+
+  useEffect(() => {
+    console.log(user)
+    if(user?.token != null) getUserPoints()
+  },[user])
+
+  useEffect(() => {
+    if(refreshPoints) getUserPoints()
+  },[refreshPoints])
 
   const handleSharePoints = async () => {
     if (!shareForm.email || shareForm.points <= 0) {
@@ -46,22 +80,33 @@ export const UserDashboard = () => {
 
     setIsLoading(true);
     try {
-      // Mock API call
-      setTimeout(() => {
-        toast({
-          title: "Points shared successfully!",
-          description: `${shareForm.points} points sent to ${shareForm.email}`,
-        });
-        setUserPoints(prev => ({ points: prev.points - shareForm.points }));
-        setShareForm({ orgId: 1, email: '', points: 0 });
-        setIsLoading(false);
-      }, 1000);
+      await axios.post(
+        yeshteryApi + 'loyalty/share_points',
+        {
+          headers: {
+            'User-Token': user.token,
+            'Content-Type': 'application/json',
+          },
+          params: {
+            org_id: 2,
+            email: shareForm.email,
+            points: shareForm.points,
+          },
+        }
+      );
+      toast({
+        title: "Points shared successfully!",
+        description: `${shareForm.points} points sent to ${shareForm.email}`,
+      });
+      setShareForm({ orgId: user.orgId, email: '', points: 0 });
+      setRefreshPoints(true);
     } catch (error) {
       toast({
         title: "Failed to share points",
         description: "Please try again later",
         variant: "destructive",
       });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -78,17 +123,15 @@ export const UserDashboard = () => {
 
     setIsLoading(true);
     try {
-      // Mock API call
-      setTimeout(() => {
-        const rewardPoints = Math.floor(parseFloat(orderAmount) * 0.1); // 10% reward
-        setUserPoints(prev => ({ points: prev.points + rewardPoints }));
-        toast({
-          title: "Order processed!",
-          description: `You earned ${rewardPoints} reward points!`,
-        });
-        setOrderAmount('');
-        setIsLoading(false);
-      }, 1000);
+      const res = await axios.post(nasnavApi + 'cart/checkout/reward' , {orderAmount : orderAmount} , {
+        headers: {
+          'Authorization': `Bearer ${user.token}`, 
+          'Content-Type': 'application/json'
+        }
+      })
+      const result = await res.data
+      setUserPoints({points : result.earnedPoints})
+      setIsLoading(false)
     } catch (error) {
       toast({
         title: "Order processing failed",
@@ -104,7 +147,44 @@ export const UserDashboard = () => {
       title: `${type === 'apple' ? 'Apple' : 'Google'} Wallet`,
       description: `Opening ${type === 'apple' ? 'Apple' : 'Google'} Wallet integration...`,
     });
+
+
+    if(type == 'apple') return handleAppleWallet()
+
+      handleGoogleWallet()
   };
+
+  const handleAppleWallet = async () => {
+    fetch(nasnavApi + 'wallet/apple/qrCode', {
+      method: "GET",
+      headers: {
+        Authorization: "Bearer " + user.token,
+      }
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const imgUrl = URL.createObjectURL(blob);
+        setWalletRes(imgUrl)
+        setIsAppleWallet(true)
+      })
+      .catch()
+
+  }
+
+
+  const handleGoogleWallet = async () => {
+    const res = await axios.get(nasnavApi + 'wallet/google', {
+      headers: {
+        'Authorization': `Bearer ${user.token}`, 
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const result = await res.data
+
+    setWalletRes(result)
+    setIsAppleWallet(false)
+  }
 
   return (
     <div className="min-h-screen bg-background p-4">
@@ -143,7 +223,7 @@ export const UserDashboard = () => {
             </GradientCard>
 
             {/* Spendable Points History */}
-            <GradientCard>
+            {/* <GradientCard>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Gift className="h-5 w-5 text-accent" />
@@ -168,10 +248,10 @@ export const UserDashboard = () => {
                   </div>
                 ))}
               </CardContent>
-            </GradientCard>
+            </GradientCard> */}
 
             {/* Share Points */}
-            <GradientCard>
+            {/* <GradientCard>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Send className="h-5 w-5 text-primary" />
@@ -213,7 +293,7 @@ export const UserDashboard = () => {
                   {isLoading ? 'Sharing...' : 'Share Points'}
                 </Button>
               </CardContent>
-            </GradientCard>
+            </GradientCard> */}
 
             {/* Order Checkout */}
             <GradientCard>
@@ -281,7 +361,9 @@ export const UserDashboard = () => {
                 </Button>
                 <Separator />
                 <div className="text-center">
-                  <QrCode className="h-16 w-16 mx-auto text-muted-foreground mb-2" />
+                  {!walletRes && <QrCode className="h-16 w-16 mx-auto text-muted-foreground mb-2" />}
+                  {(walletRes) && <img style={{margin : 'auto'}} src={walletRes} width={100} height={100} ></img>} 
+
                   <p className="text-sm text-muted-foreground">
                     Scan QR code to access your digital loyalty card
                   </p>

@@ -1,6 +1,8 @@
 export interface LoginCredentials {
   email: string;
   password: string;
+  isEmployee : boolean , 
+  orgId : Number
 }
 
 export interface User {
@@ -8,6 +10,7 @@ export interface User {
   email: string;
   role: 'admin' | 'user';
   token: string;
+  orgId:number;
 }
 
 export interface AuthContextType {
