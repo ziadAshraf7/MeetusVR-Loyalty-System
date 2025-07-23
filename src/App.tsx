@@ -10,6 +10,7 @@ import { UserDashboard } from "@/pages/UserDashboard";
 import { AdminDashboard } from "@/pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 import { ShopCheckInLogin } from "@/pages/ShopCheckInLogin";
+import Dashboard from './pages/Dashboard';
 
 const queryClient = new QueryClient();
 
@@ -22,8 +23,9 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Login />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route 
-              path="/dashboard" 
+              path="/user-dashboard" 
               element={
                 <ProtectedRoute requiredRole="user">
                   <UserDashboard />

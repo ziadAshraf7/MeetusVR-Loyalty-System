@@ -20,8 +20,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LoyaltyUserPointsResponse, LoyaltyPointTransactionDTO, SharePointsRequest, CheckoutRewardDto } from '@/types/loyalty';
-import axios from 'axios';
-import { nasnavApi, yeshteryApi } from '@/lib/utils';
+import { api, nasnavApi, yeshteryApi } from '@/lib/utils';
 
 export const UserDashboard = () => {
   const { user, logout } = useAuth();
@@ -41,7 +40,7 @@ export const UserDashboard = () => {
   async function getUserPoints() {
     
     try{
-      const res = await axios.get(nasnavApi + 'loyalty/points?org_id=' + user.orgId, {
+      const res = await api.get(nasnavApi + 'loyalty/points?org_id=' + user.orgId, {
         headers: {
           'Authorization': `Bearer ${user.token}`, 
           'Content-Type': 'application/json'
@@ -80,7 +79,7 @@ export const UserDashboard = () => {
 
     setIsLoading(true);
     try {
-      await axios.post(
+      await api.post(
         yeshteryApi + 'loyalty/share_points',
         {
           headers: {
@@ -123,7 +122,7 @@ export const UserDashboard = () => {
 
     setIsLoading(true);
     try {
-      const res = await axios.post(nasnavApi + 'cart/checkout/reward' , {orderAmount : orderAmount} , {
+      const res = await api.post(nasnavApi + 'cart/checkout/reward' , {orderAmount : orderAmount} , {
         headers: {
           'Authorization': `Bearer ${user.token}`, 
           'Content-Type': 'application/json'
@@ -173,17 +172,19 @@ export const UserDashboard = () => {
 
 
   const handleGoogleWallet = async () => {
-    const res = await axios.get(nasnavApi + 'wallet/google', {
+    fetch(nasnavApi + 'wallet/google/qrCode', {
+      method: "GET",
       headers: {
-        'Authorization': `Bearer ${user.token}`, 
-        'Content-Type': 'application/json'
+        Authorization: "Bearer " + user.token,
       }
-    });
-
-    const result = await res.data
-
-    setWalletRes(result)
-    setIsAppleWallet(false)
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const imgUrl = URL.createObjectURL(blob);
+        setWalletRes(imgUrl)
+        setIsAppleWallet(false)
+      })
+      .catch()
   }
 
   return (

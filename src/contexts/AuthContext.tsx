@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AuthContextType, User, LoginCredentials } from '@/types/auth';
-import axios from 'axios';
+import { api } from '@/lib/utils';
 import { nasnavApi, yeshteryApi } from '@/lib/utils';
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -45,7 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role : role
     }
 
-      const res = await axios.post(yeshteryApi + 'yeshtery/token' , mockUser)
+      const res = await api.post(yeshteryApi + 'yeshtery/token' , mockUser)
       const token = await res.data
 
       localStorage.setItem('userToken', token.token);

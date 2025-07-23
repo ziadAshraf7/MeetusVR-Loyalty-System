@@ -6,8 +6,7 @@ import { Label } from '@/components/ui/label';
 import { GradientCard } from '@/components/ui/gradient-card';
 import { CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import axios from 'axios';
-import { yeshteryApi } from '@/lib/utils';
+import { api, yeshteryApi } from '@/lib/utils';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -53,7 +52,7 @@ export const ShopCheckInLogin = () => {
       const { shopId, latitude, longitude } = checkinForm;
       console.log(shopId , latitude)
       if (!shopId || !latitude || !longitude) throw new Error('All fields required');
-      await axios.post(
+      await api.post(
         `${yeshteryApi}shop_check_in/reward?shopId=${shopId}`,
         { latitude, longitude },
         { headers: { Authorization: `Bearer ${user.token}` } }
