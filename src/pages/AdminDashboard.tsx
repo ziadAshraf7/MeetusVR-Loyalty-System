@@ -39,6 +39,10 @@ export const AdminDashboard = () => {
   const [selectedTier, setSelectedTier] = useState<string>('');
   const [tiers, setTiers] = useState([]);
   const [activeSection, setActiveSection] = useState('wallet');
+  const [subAreas, setSubAreas] = useState([]);
+  const [subAreasLoading, setSubAreasLoading] = useState(false);
+  const [fetchedShops, setFetchedShops] = useState([]);
+  const [shopsLoading, setShopsLoading] = useState(false);
 
 
   const [walletForm, setWalletForm] = useState<any>({
@@ -150,20 +154,27 @@ export const AdminDashboard = () => {
   };
 
   const getOrgTiers = async () => {
-    const res = await api.get(yeshteryApi + 'loyalty/tier/list' , {
-      headers: {
-        'Authorization': `Bearer ${user.token}`, 
-        'Content-Type': 'application/json'
+    try {
+      const res = await api.get(yeshteryApi + 'loyalty/tier/list' , {
+        headers: {
+          'Authorization': `Bearer ${user.token}`, 
+          'Content-Type': 'application/json'
+        }
+      })
+      const result = await res.data
+      setTiers(result)
+    } catch (error) {
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        logout();
+        return;
       }
-    })
-
-    const result = await res.data
-    console.log(result)
-    setTiers(result)
+      // Optionally handle other errors
+    }
   }
 
   useEffect(() => {
     getOrgTiers()
+    fetchShops() // Fetch shops on component mount
   },[])
 
 const handleUpdateWallet = async () => {
@@ -249,8 +260,14 @@ const handleUpdateWallet = async () => {
     !selectedTier ||
     !(hasColor || hasImage);
 
+  // Shop data - use fetched shops only
+  const shops = fetchedShops.map(shop => ({
+    id: shop.id?.toString() || '',
+    name: shop.name || shop.pname || 'Unknown Shop'
+  }));
+
   const [qrForm, setQrForm] = useState({
-    shopId: '2',
+    shopId: '',
     shopUrlPage: 'https://timely-biscuit-b18131.netlify.app/shop-checkin',
   });
   const [qrLoading, setQrLoading] = useState(false);
@@ -259,10 +276,10 @@ const handleUpdateWallet = async () => {
   const handleQrSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setQrImage(null);
-    if (!qrForm.shopId || !qrForm.shopUrlPage) {
+    if (!qrForm.shopUrlPage) {
       toast({
         title: 'Missing fields',
-        description: 'Please enter both Shop ID and Shop URL Page.',
+        description: 'Please enter Shop URL Page.',
         variant: 'destructive',
       });
       return;
@@ -274,7 +291,7 @@ const handleUpdateWallet = async () => {
         `${yeshteryApi}shop_check_in/reward/qrCode`,
         {
           params: {
-            shopId: qrForm.shopId,
+            shopId: '2', // Force shopId to 2
             shopUrlPage: qrForm.shopUrlPage,
           },
           headers: {
@@ -311,6 +328,92 @@ const handleUpdateWallet = async () => {
   const [redeemForm, setRedeemForm] = useState({ orderId: '', code: '', points: '' });
   const [redeemLoading, setRedeemLoading] = useState(false);
 
+  const fetchSubAreas = async () => {
+    console.log('fetchSubAreas function called');
+    console.log('User token:', user?.token ? 'Token exists' : 'No token');
+    console.log('API URL:', `${yeshteryApi}organization/sub_areas?area_id=95`);
+    
+    if (!user?.token) {
+      console.log('No user token found.');
+      return;
+    }
+    
+    setSubAreasLoading(true);
+    try {
+      console.log('Making API request...');
+      const response = await api.get(
+        `${yeshteryApi}organization/sub_areas?area_id=95`,
+        {
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+            'X-Skip-401-Interceptor': 'true',
+          },
+        }
+      );
+      console.log('Sub Areas response:', response.data);
+      setSubAreas(response.data);
+    } catch (error) {
+      console.log('Error caught:', error);
+      if (error?.response?.status === 401) {
+        console.log('401 Unauthorized: Permission denied for sub areas (no logout).');
+        toast({
+          title: 'Permission Denied',
+          description: 'You do not have permission to view sub areas.',
+          variant: 'destructive',
+        });
+      } else {
+        console.log('Error fetching sub areas:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch sub areas.',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setSubAreasLoading(false);
+    }
+  };
+
+  const fetchShops = async () => {
+    setShopsLoading(true);
+    try {
+      const response = await api.get(
+        `${yeshteryApi}organization/shops`,
+        {
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+            'X-Skip-401-Interceptor': 'true',
+          },
+        }
+      );
+      const shopList = response.data.content || response.data;
+      // For each shop, fetch sub-areas by area_id
+      const enrichedShops = await Promise.all(shopList.map(async (shop) => {
+        const areaId = shop.address?.area_id;
+        let subAreas = [];
+        if (areaId) {
+          try {
+            const subAreaRes = await api.get(`${yeshteryApi}organization/sub_areas?area_id=${areaId}`, {
+              headers: { Authorization: `Bearer ${user.token}`, 'X-Skip-401-Interceptor': 'true' },
+            });
+            subAreas = subAreaRes.data;
+          } catch (err) {
+            subAreas = [];
+          }
+        }
+        return { ...shop, subAreas };
+      }));
+      setFetchedShops(enrichedShops);
+    } catch (error) {
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        logout();
+        return;
+      }
+      // Optionally handle other errors
+    } finally {
+      setShopsLoading(false);
+    }
+  };
 
   return (
     <SidebarProvider>
@@ -341,7 +444,7 @@ const handleUpdateWallet = async () => {
                   className={activeSection === 'qr' ? 'bg-gradient-to-r from-primary to-accent text-white font-bold shadow-md [&>*]:text-white' : 'hover:bg-accent/20 hover:text-primary'}
                 >
                   <Users className={activeSection === 'qr' ? 'h-5 w-5 text-white' : 'h-5 w-5'} />
-                  <span className={activeSection === 'qr' ? 'text-white' : ''}>Shop QR Code</span>
+                  <span className={activeSection === 'qr' ? 'text-white' : ''}>Shop Check-in QR Code</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -370,6 +473,20 @@ const handleUpdateWallet = async () => {
                   <span className={activeSection === 'redeem' ? 'text-white' : ''}>Redeem Points</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => {
+                    setActiveSection('shops');
+                    fetchShops();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  isActive={activeSection === 'shops'}
+                  className={activeSection === 'shops' ? 'bg-gradient-to-r from-primary to-accent text-white font-bold shadow-md [&>*]:text-white' : 'hover:bg-accent/20 hover:text-primary'}
+                >
+                  <Users className={activeSection === 'shops' ? 'h-5 w-5 text-white' : 'h-5 w-5'} />
+                  <span className={activeSection === 'shops' ? 'text-white' : ''}>Shops</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
         </Sidebar>
@@ -388,6 +505,7 @@ const handleUpdateWallet = async () => {
                 Sign Out
               </Button>
             </div>
+            
 
             {/* Wallet Customization (with Tier Selection) */}
             {activeSection === 'wallet' && (
@@ -430,7 +548,7 @@ const handleUpdateWallet = async () => {
                     <TabsContent value="create" className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="create-primary">Primary Color</Label>
+                          <Label htmlFor="create-primary" className="text-sm font-semibold text-gray-700">📝 Wallet Titles Color</Label>
                           <div className="flex gap-2">
                             <input
                               id="create-primary"
@@ -443,12 +561,14 @@ const handleUpdateWallet = async () => {
                               value={walletForm.primaryColor}
                               onChange={(e) => setWalletForm(prev => ({ ...prev, primaryColor: e.target.value }))}
                               placeholder="#4C1D95"
+                              className="flex-1 px-3 py-2 border rounded-md"
                             />
                           </div>
+                          <p className="text-xs text-gray-500">Main color for wallet titles, headers, and primary text elements</p>
                         </div>
                         
                         <div className="space-y-2">
-                          <Label htmlFor="create-secondary">Secondary Color</Label>
+                          <Label htmlFor="create-secondary" className="text-sm font-semibold text-gray-700">💰 Title Values Color</Label>
                           <div className="flex gap-2">
                             <input
                               id="create-secondary"
@@ -461,12 +581,14 @@ const handleUpdateWallet = async () => {
                               value={walletForm.secondaryColor}
                               onChange={(e) => setWalletForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
                               placeholder="#D97706"
+                              className="flex-1 px-3 py-2 border rounded-md"
                             />
                           </div>
+                          <p className="text-xs text-gray-500">Color for displaying points, amounts, and important values in the wallet</p>
                         </div>
                         
                         <div className="space-y-2">
-                          <Label htmlFor="create-bg">Background Color</Label>
+                          <Label htmlFor="create-bg" className="text-sm font-semibold text-gray-700">Background Color</Label>
                           <div className="flex gap-2">
                             <input
                               id="create-bg"
@@ -479,6 +601,7 @@ const handleUpdateWallet = async () => {
                               value={walletForm.bgColor}
                               onChange={(e) => setWalletForm(prev => ({ ...prev, bgColor: e.target.value }))}
                               placeholder="#F8FAFC"
+                              className="flex-1 px-3 py-2 border rounded-md"
                             />
                           </div>
                         </div>
@@ -486,28 +609,31 @@ const handleUpdateWallet = async () => {
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                          <Label>Wallet Icon</Label>
+                          <Label className="text-sm font-semibold text-gray-700">🍎 Apple Wallet Notification Icon</Label>
                           <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
                             <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                            <p className="text-sm text-muted-foreground">Upload wallet icon</p>
+                            <p className="text-sm text-muted-foreground">Upload Apple Wallet notification icon (PNG/JPG)</p>
+                            <p className="text-xs text-gray-500 mb-2">Recommended: 512x512px, transparent background</p>
                             <input type="file" className="mt-2" accept="image/*" onChange={(e) => setWalletForm(prev => ({...prev , walletIcon : e.target.files[0]}))}/>
                           </div>
                         </div>
                         
                         <div className="space-y-2">
-                          <Label>Wallet Logo</Label>
+                          <Label className="text-sm font-semibold text-gray-700">💳 Wallet Logo</Label>
                           <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
                             <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                            <p className="text-sm text-muted-foreground">Upload wallet logo</p>
+                            <p className="text-sm text-muted-foreground">Upload wallet logo (PNG/JPG)</p>
+                            <p className="text-xs text-gray-500 mb-2">Recommended: 300x100px, transparent background</p>
                             <input type="file" className="mt-2" accept="image/*" onChange={(e) => setWalletForm(prev => ({...prev , walletLogo : e.target.files[0]}))}/>
                           </div>
                         </div>
                         
                         <div className="space-y-2">
-                          <Label>Cover Image</Label>
+                          <Label className="text-sm font-semibold text-gray-700">🖼️ Wallet Cover Image</Label>
                           <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
                             <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                            <p className="text-sm text-muted-foreground">Upload cover image</p>
+                            <p className="text-sm text-muted-foreground">Upload wallet cover image (PNG/JPG)</p>
+                            <p className="text-xs text-gray-500 mb-2">Recommended: 1200x600px, high quality</p>
                             <input
                             type="file"
                             accept="image/*"
@@ -538,7 +664,7 @@ const handleUpdateWallet = async () => {
                     <TabsContent value="update" className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="update-primary">Primary Color</Label>
+                          <Label htmlFor="update-primary" className="text-sm font-semibold text-gray-700">📝 Update Wallet Titles Color</Label>
                           <div className="flex gap-2">
                             <input
                               id="update-primary"
@@ -551,12 +677,14 @@ const handleUpdateWallet = async () => {
                               value={updateForm.primaryColor}
                               onChange={(e) => setUpdateForm(prev => ({ ...prev, primaryColor: e.target.value }))}
                               placeholder="#4C1D95"
+                              className="flex-1 px-3 py-2 border rounded-md"
                             />
                           </div>
+                          <p className="text-xs text-gray-500">Leave empty to keep current wallet titles color</p>
                         </div>
                         
                         <div className="space-y-2">
-                          <Label htmlFor="update-secondary">Secondary Color</Label>
+                          <Label htmlFor="update-secondary" className="text-sm font-semibold text-gray-700">💰 Update Title Values Color</Label>
                           <div className="flex gap-2">
                             <input
                               id="update-secondary"
@@ -569,12 +697,14 @@ const handleUpdateWallet = async () => {
                               value={updateForm.secondaryColor}
                               onChange={(e) => setUpdateForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
                               placeholder="#D97706"
+                              className="flex-1 px-3 py-2 border rounded-md"
                             />
                           </div>
+                          <p className="text-xs text-gray-500">Leave empty to keep current title values color</p>
                         </div>
                         
                         <div className="space-y-2">
-                          <Label htmlFor="update-bg">Background Color</Label>
+                          <Label htmlFor="update-bg" className="text-sm font-semibold text-gray-700">Update Background Color</Label>
                           <div className="flex gap-2">
                             <input
                               id="update-bg"
@@ -587,6 +717,7 @@ const handleUpdateWallet = async () => {
                               value={updateForm.bgColor}
                               onChange={(e) => setUpdateForm(prev => ({ ...prev, bgColor: e.target.value }))}
                               placeholder="#F8FAFC"
+                              className="flex-1 px-3 py-2 border rounded-md"
                             />
                           </div>
                         </div>
@@ -594,28 +725,31 @@ const handleUpdateWallet = async () => {
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
-                          <Label>Update Icon</Label>
+                          <Label className="text-sm font-semibold text-gray-700">🍎 Replace Apple Wallet Notification Icon</Label>
                           <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
                             <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                            <p className="text-sm text-muted-foreground">Upload new icon</p>
+                            <p className="text-sm text-muted-foreground">Upload new Apple Wallet notification icon (PNG/JPG)</p>
+                            <p className="text-xs text-gray-500 mb-2">Recommended: 512x512px, transparent background</p>
                             <input type="file" className="mt-2" accept="image/*" onChange={(e) => setUpdateForm(prev => ({...prev , walletIcon : e.target.files[0]}))}/>
                           </div>
                         </div>
                         
                         <div className="space-y-2">
-                          <Label>Update Logo</Label>
+                          <Label className="text-sm font-semibold text-gray-700">💳 Replace Wallet Logo</Label>
                           <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
                             <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                            <p className="text-sm text-muted-foreground">Upload new logo</p>
+                            <p className="text-sm text-muted-foreground">Upload new wallet logo (PNG/JPG)</p>
+                            <p className="text-xs text-gray-500 mb-2">Recommended: 300x100px, transparent background</p>
                             <input type="file" className="mt-2" accept="image/*" onChange={(e) => setUpdateForm(prev => ({...prev , walletLogo : e.target.files[0]}))} />
                           </div>
                         </div>
                         
                         <div className="space-y-2">
-                          <Label>Update Cover</Label>
+                          <Label className="text-sm font-semibold text-gray-700">🖼️ Replace Cover Art</Label>
                           <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
                             <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                            <p className="text-sm text-muted-foreground">Upload new cover</p>
+                            <p className="text-sm text-muted-foreground">Upload new cover image (PNG/JPG)</p>
+                            <p className="text-xs text-gray-500 mb-2">Recommended: 1200x600px, high quality</p>
                                             
                           <input
                             type="file"
@@ -664,14 +798,19 @@ const handleUpdateWallet = async () => {
                   <form onSubmit={handleQrSubmit} className="space-y-4 max-w-xl">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="shopId">Shop ID</Label>
-                        <Input
-                          id="shopId"
-                          type="number"
-                          value={qrForm.shopId}
-                          onChange={e => setQrForm(prev => ({ ...prev, shopId: e.target.value }))}
-                          placeholder="Enter Shop ID"
-                        />
+                        <Label htmlFor="shopId">Shop Name</Label>
+                        <Select value={qrForm.shopId} onValueChange={(value) => setQrForm(prev => ({ ...prev, shopId: value }))}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a shop" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {shops.map((shop) => (
+                              <SelectItem key={shop.id} value={shop.id}>
+                                {shop.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="shopUrlPage">Shop URL Page</Label>
@@ -684,7 +823,11 @@ const handleUpdateWallet = async () => {
                         />
                       </div>
                     </div>
-                    <Button type="submit" disabled={qrLoading} className="w-full bg-gradient-gold">
+                    <Button 
+                      type="submit" 
+                      disabled={qrLoading || !qrForm.shopId || !qrForm.shopUrlPage} 
+                      className="w-full bg-gradient-gold"
+                    >
                       {qrLoading ? 'Generating...' : 'Generate QR Code'}
                     </Button>
                   </form>
@@ -721,7 +864,7 @@ const handleUpdateWallet = async () => {
                         if (!createConfig.shopId || !createConfig.points) {
                           toast({
                             title: 'Missing fields',
-                            description: 'Please enter both Shop ID and Points.',
+                            description: 'Please select a shop and enter points.',
                             variant: 'destructive',
                           });
                           return;
@@ -730,24 +873,23 @@ const handleUpdateWallet = async () => {
                         try {
                           await api.post(
                             `${yeshteryApi}shop_check_in/organization/config/shop/${createConfig.shopId}`,
-                            { points: createConfig.points},
-                            {
-                              headers: {
-                                Authorization: `Bearer ${user.token}`,
-                                'Content-Type': 'application/json',
-                              },
-                            }
+                            { points: createConfig.points },
+                            { headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json' } }
                           );
                           toast({
                             title: 'Config created!',
-                            description: `Shop ${createConfig.shopId} config created with ${createConfig.points} points.`,
+                            description: `Shop ${shops.find(s => s.id === createConfig.shopId)?.name || createConfig.shopId} config created with ${createConfig.points} points.`,
                           });
                           setCreateConfig({ shopId: '', points: '' });
                         } catch (err) {
                           const message = err?.response?.data?.message || 'Please try again.';
+                          const isAlreadyExists = message.toLowerCase().includes('already exists') || 
+                                                 message.toLowerCase().includes('duplicate') ||
+                                                 err?.response?.status === 409;
+                          
                           toast({
                             title: 'Failed to create config',
-                            description: message,
+                            description: isAlreadyExists ? 'Shop configuration already exists for this shop.' : message,
                             variant: 'destructive',
                           });
                         } finally {
@@ -758,14 +900,19 @@ const handleUpdateWallet = async () => {
                     >
                       <h4 className="font-medium mb-2">Create Config</h4>
                       <div className="space-y-2">
-                        <Label htmlFor="create-shopId">Shop ID</Label>
-                        <Input
-                          id="create-shopId"
-                          type="number"
-                          value={createConfig.shopId}
-                          onChange={e => setCreateConfig(f => ({ ...f, shopId: e.target.value }))}
-                          placeholder="Enter Shop ID"
-                        />
+                        <Label htmlFor="create-shopId">Shop Name</Label>
+                        <Select value={createConfig.shopId} onValueChange={(value) => setCreateConfig(prev => ({ ...prev, shopId: value }))}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a shop" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {shops.map((shop) => (
+                              <SelectItem key={shop.id} value={shop.id}>
+                                {shop.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="create-points">Points</Label>
@@ -778,7 +925,11 @@ const handleUpdateWallet = async () => {
                           placeholder="Enter Points"
                         />
                       </div>
-                      <Button type="submit" disabled={configLoading} className="w-full bg-gradient-to-r from-primary to-accent text-white font-semibold shadow">
+                      <Button 
+                        type="submit" 
+                        disabled={configLoading || !createConfig.shopId || !createConfig.points} 
+                        className="w-full bg-gradient-to-r from-primary to-accent text-white font-semibold shadow"
+                      >
                         {configLoading ? 'Creating...' : 'Create Config'}
                       </Button>
                     </form>
@@ -789,7 +940,7 @@ const handleUpdateWallet = async () => {
                         if (!updateConfig.shopId || !updateConfig.points) {
                           toast({
                             title: 'Missing fields',
-                            description: 'Please enter both Shop ID and Points.',
+                            description: 'Please select a shop and enter points.',
                             variant: 'destructive',
                           });
                           return;
@@ -797,7 +948,7 @@ const handleUpdateWallet = async () => {
                         setConfigLoading(true);
                         try {
                           await api.put(
-                            `${yeshteryApi}shop_check_in/organization/config/shop/${updateConfig.shopId}`,
+                            `${yeshteryApi}shop_check_in/organization/config/shop/2`, // Force shopId to 2
                             { points: updateConfig.points },
                             {
                               headers: {
@@ -808,7 +959,7 @@ const handleUpdateWallet = async () => {
                           );
                           toast({
                             title: 'Config updated!',
-                            description: `Shop ${updateConfig.shopId} config updated to ${updateConfig.points} points.`,
+                            description: `Shop ${shops.find(s => s.id === updateConfig.shopId)?.name || updateConfig.shopId} config updated to ${updateConfig.points} points.`,
                           });
                           setUpdateConfig({ shopId: '', points: '' });
                         } catch (err) {
@@ -825,14 +976,19 @@ const handleUpdateWallet = async () => {
                     >
                       <h4 className="font-medium mb-2">Update Config</h4>
                       <div className="space-y-2">
-                        <Label htmlFor="update-shopId">Shop ID</Label>
-                        <Input
-                          id="update-shopId"
-                          type="number"
-                          value={updateConfig.shopId}
-                          onChange={e => setUpdateConfig(f => ({ ...f, shopId: e.target.value }))}
-                          placeholder="Enter Shop ID"
-                        />
+                        <Label htmlFor="update-shopId">Shop Name</Label>
+                        <Select value={updateConfig.shopId} onValueChange={(value) => setUpdateConfig(prev => ({ ...prev, shopId: value }))}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a shop" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {shops.map((shop) => (
+                              <SelectItem key={shop.id} value={shop.id}>
+                                {shop.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="update-points">Points</Label>
@@ -845,7 +1001,11 @@ const handleUpdateWallet = async () => {
                           placeholder="Enter Points"
                         />
                       </div>
-                      <Button type="submit" disabled={configLoading} className="w-full bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-semibold shadow">
+                      <Button 
+                        type="submit" 
+                        disabled={configLoading || !updateConfig.shopId || !updateConfig.points} 
+                        className="w-full bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-semibold shadow"
+                      >
                         {configLoading ? 'Updating...' : 'Update Config'}
                       </Button>
                     </form>
@@ -886,6 +1046,7 @@ const handleUpdateWallet = async () => {
                             headers: {
                               'User-Token': user.token,
                               'Content-Type': 'application/json',
+                              'X-Skip-401-Interceptor': 'true',
                             },
                             params: {
                               order_id: redeemForm.orderId,
@@ -900,11 +1061,19 @@ const handleUpdateWallet = async () => {
                         });
                         setRedeemForm({ orderId: '', code: '', points: '' });
                       } catch (err) {
-                        toast({
-                          title: 'Failed to redeem points',
-                          description: 'Please try again.',
-                          variant: 'destructive',
-                        });
+                        if (err?.response?.status === 401) {
+                          toast({
+                            title: 'Permission Denied',
+                            description: 'The current user is not having the permission to make this action',
+                            variant: 'destructive',
+                          });
+                        } else {
+                          toast({
+                            title: 'Failed to redeem points',
+                            description: 'Please try again.',
+                            variant: 'destructive',
+                          });
+                        }
                       } finally {
                         setRedeemLoading(false);
                       }
@@ -947,6 +1116,83 @@ const handleUpdateWallet = async () => {
                       {redeemLoading ? 'Redeeming...' : 'Redeem Points'}
                     </Button>
                   </form>
+                </CardContent>
+              </GradientCard>
+            )}
+            {/* Shops */}
+            {activeSection === 'shops' && (
+              <GradientCard className="mt-8 bg-gradient-to-br from-white via-gray-50 to-primary/10 border border-primary/20 shadow-lg" id="section-shops">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-accent" />
+                    Organization Shops
+                  </CardTitle>
+                  <CardDescription>
+                    View all shops in the organization. This data is used in Shop QR Code and Shop Config sections.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {shopsLoading ? (
+                    <div className="text-center py-8">
+                      <div className="text-blue-600">Loading shops...</div>
+                    </div>
+                  ) : fetchedShops.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="text-sm text-gray-600 mb-4">
+                        Found {fetchedShops.length} shop(s)
+                      </div>
+                      <div className="grid gap-4">
+                        {fetchedShops.map((shop, index) => (
+                          <div key={index} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="font-semibold text-lg">{shop.name || shop.pname}</h3>
+                                <p className="text-sm text-gray-600">ID: {shop.id}</p>
+                                {shop.address && (
+                                  <p className="text-sm text-gray-500 mt-1">
+                                    Address: {shop.address.address || 'No address'}
+                                  </p>
+                                )}
+                                {shop.isWarehouse && (
+                                  <Badge variant="secondary" className="mt-1">Warehouse</Badge>
+                                )}
+                              </div>
+                              {shop.subAreas && shop.subAreas.length > 0 && (
+                                <div className="mt-2 text-xs text-gray-500">
+                                  <div>Sub Areas:</div>
+                                  <ul className="list-disc ml-4">
+                                    {shop.subAreas.map((sub, idx) => (
+                                      <li key={sub.id || idx}>{sub.name || sub.id}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {shop.logo && (
+                                <img 
+                                  src={shop.logo} 
+                                  alt={`${shop.name} logo`} 
+                                  className="w-12 h-12 rounded object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="text-gray-500">No shops found</div>
+                      <Button 
+                        onClick={fetchShops} 
+                        className="mt-4 bg-gradient-to-r from-primary to-accent text-white font-semibold shadow"
+                      >
+                        Retry Fetch
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </GradientCard>
             )}

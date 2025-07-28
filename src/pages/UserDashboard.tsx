@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { LoyaltyUserPointsResponse, LoyaltyPointTransactionDTO, SharePointsRequest, CheckoutRewardDto } from '@/types/loyalty';
-import { api, nasnavApi, yeshteryApi } from '@/lib/utils';
+import { api, nasnavApi, yeshteryApi, localApi } from '@/lib/utils';
 
 export const UserDashboard = () => {
   const { user, logout } = useAuth();
@@ -40,7 +40,7 @@ export const UserDashboard = () => {
   async function getUserPoints() {
     
     try{
-      const res = await api.get(nasnavApi + 'loyalty/points?org_id=' + user.orgId, {
+      const res = await api.get(nasnavApi + 'loyalty/points', {
         headers: {
           'Authorization': `Bearer ${user.token}`, 
           'Content-Type': 'application/json'

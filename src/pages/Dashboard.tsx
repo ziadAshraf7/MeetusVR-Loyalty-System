@@ -49,7 +49,7 @@ const Dashboard = () => {
   const [configsError, setConfigsError] = useState('');
 
   useEffect(() => {
-    if (activeSection !== 'manage-tiers') return;
+    if (activeSection !== 'manage-tiers' && activeSection !== 'create-tier-config') return;
     const fetchTiers = async () => {
       setTiersLoading(true);
       setTiersError('');
@@ -57,11 +57,15 @@ const Dashboard = () => {
         if (!user?.token) throw new Error('Not authenticated');
         const res = await api.get(
           yeshteryApi + 'loyalty/tier/list',
-          { headers: { Authorization: `Bearer ${user.token}` } }
+          { headers: { Authorization: `Bearer ${user.token}`, 'X-Skip-401-Interceptor': 'true' } }
         );
         setTiers(res.data);
       } catch (err) {
-        setTiersError(err?.response?.data?.message || err.message || 'Failed to fetch tiers');
+        if (err?.response?.status === 401) {
+          setTiersError('The current user is not having the permission to make this action');
+        } else {
+          setTiersError(err?.response?.data?.message || err.message || 'Failed to fetch tiers');
+        }
       } finally {
         setTiersLoading(false);
       }
@@ -78,11 +82,15 @@ const Dashboard = () => {
         if (!user?.token) throw new Error('Not authenticated');
         const res = await api.get(
           yeshteryApi + 'loyalty/config/list',
-          { headers: { Authorization: `Bearer ${user.token}` } }
+          { headers: { Authorization: `Bearer ${user.token}`, 'X-Skip-401-Interceptor': 'true' } }
         );
         setConfigs(res.data);
       } catch (err) {
-        setConfigsError(err?.response?.data?.message || err.message || 'Failed to fetch configs');
+        if (err?.response?.status === 401) {
+          setConfigsError('The current user is not having the permission to make this action');
+        } else {
+          setConfigsError(err?.response?.data?.message || err.message || 'Failed to fetch configs');
+        }
       } finally {
         setConfigsLoading(false);
       }
@@ -145,7 +153,7 @@ const Dashboard = () => {
       await api.post(
         yeshteryApi + 'loyalty/tier/update',
         body,
-        { headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json', 'X-Skip-401-Interceptor': true } }
+        { headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json', 'X-Skip-401-Interceptor': 'true' } }
       );
       toast({
         title: editingTierId ? 'Tier updated!' : 'Tier created!',
@@ -160,23 +168,27 @@ const Dashboard = () => {
         cashBackPercentage: '',
       });
       setEditingTierId(null);
-      // Refresh the list if on manage-tiers
-      if (activeSection === 'manage-tiers') {
-        setTiersLoading(true);
-        try {
-          const res = await api.get(
-            yeshteryApi + 'loyalty/tier/list',
-            { headers: { Authorization: `Bearer ${user.token}` } }
-          );
-          setTiers(res.data);
-        } catch {}
-        setTiersLoading(false);
-      }
+              // Refresh the list if on manage-tiers
+        if (activeSection === 'manage-tiers') {
+          setTiersLoading(true);
+          try {
+            const res = await api.get(
+              yeshteryApi + 'loyalty/tier/list',
+              { headers: { Authorization: `Bearer ${user.token}`, 'X-Skip-401-Interceptor': 'true' } }
+            );
+            setTiers(res.data);
+          } catch (err) {
+            if (err?.response?.status === 401) {
+              setTiersError('The current user is not having the permission to make this action');
+            }
+          }
+          setTiersLoading(false);
+        }
     } catch (error) {
       if (error?.response?.status === 401) {
         toast({
-          title: 'Unauthorized',
-          description: 'You are not authorized to perform this action.',
+          title: 'Tier Overlap Error',
+          description: 'Tier overlapping on order amount ratio. Please adjust the purchase range or cashback percentage.',
           variant: 'destructive',
         });
         setTierLoading(false);
@@ -210,18 +222,29 @@ const Dashboard = () => {
     if (!window.confirm('Are you sure you want to delete this tier?')) return;
     try {
       if (!user?.token) throw new Error('Not authenticated');
-      await api.delete(
+      const response = await api.delete(
         yeshteryApi + `loyalty/tier/delete?tier_id=${tierId}`,
-        { headers: { Authorization: `Bearer ${user.token}` } }
+        { headers: { Authorization: `Bearer ${user.token}`, 'X-Skip-401-Interceptor': 'true' } }
       );
-      setTiers(prev => prev.filter(tier => tier.tier_id !== tierId));
-      toast({ title: 'Tier deleted', description: 'The tier was deleted successfully.' });
+      
+      if (response.status === 200) {
+        setTiers(prev => prev.filter(tier => (tier.tier_id !== tierId && tier.id !== tierId)));
+        toast({ title: 'Tier deleted', description: 'The tier was deleted successfully.' });
+      }
     } catch (err) {
-      toast({
-        title: 'Delete failed',
-        description: err?.response?.data?.message || err.message || 'Failed to delete tier',
-        variant: 'destructive',
-      });
+      if (err?.response?.status === 401) {
+        toast({
+          title: 'Permission Denied',
+          description: 'The current user is not having the permission to make this action',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Delete failed',
+          description: err?.response?.data?.message || err.message || 'Failed to delete tier',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -263,7 +286,7 @@ const Dashboard = () => {
       await api.post(
         yeshteryApi + 'loyalty/config/update',
         body,
-        { headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json' } }
+        { headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json', 'X-Skip-401-Interceptor': 'true' } }
       );
       toast({ title: 'Config created!', description: 'The configuration was created successfully.' });
       setConfigForm({
@@ -275,8 +298,16 @@ const Dashboard = () => {
         reviewAmount: '50',
       });
     } catch (error) {
-      const message = error?.response?.data?.message || 'Failed to create configuration.';
-      toast({ title: 'Error', description: message, variant: 'destructive' });
+      if (error?.response?.status === 401) {
+        toast({
+          title: 'Permission Denied',
+          description: 'The current user is not having the permission to make this action',
+          variant: 'destructive',
+        });
+      } else {
+        const message = error?.response?.data?.message || 'Failed to create configuration.';
+        toast({ title: 'Error', description: message, variant: 'destructive' });
+      }
     } finally {
       setConfigLoading(false);
     }
@@ -297,22 +328,54 @@ const Dashboard = () => {
   const handleDeleteConfig = async (configId) => {
     if (!window.confirm('Are you sure you want to delete this configuration?')) return;
     try {
-      await api.delete(
-        yeshteryApi + `loyalty/config/delete?id=${configId}`
+      const response = await api.delete(
+        yeshteryApi + `loyalty/config/delete?id=${configId}`,
+        { headers: { Authorization: `Bearer ${user.token}`, 'X-Skip-401-Interceptor': 'true' } }
       );
-      setConfigs(prev => prev.filter(config => config.id !== configId));
-      toast({ title: 'Config deleted', description: 'The configuration was deleted successfully.' });
+      
+      if (response.status === 200) {
+        setConfigs(prev => prev.filter(config => config.id !== configId));
+        toast({ title: 'Config deleted', description: 'The configuration was deleted successfully.' });
+        
+        // Refresh the configs list to ensure UI is in sync with backend
+        if (activeSection === 'manage-tier-configs') {
+          setConfigsLoading(true);
+          try {
+            const res = await api.get(
+              yeshteryApi + 'loyalty/config/list',
+              { headers: { Authorization: `Bearer ${user.token}`, 'X-Skip-401-Interceptor': 'true' } }
+            );
+            setConfigs(res.data);
+          } catch (refreshErr) {
+            if (refreshErr?.response?.status === 401) {
+              setConfigsError('The current user is not having the permission to make this action');
+            } else {
+              setConfigsError(refreshErr?.response?.data?.message || refreshErr.message || 'Failed to fetch configs');
+            }
+          } finally {
+            setConfigsLoading(false);
+          }
+        }
+      }
     } catch (err) {
-      toast({
-        title: 'Delete failed',
-        description: err?.response?.data?.message || err.message || 'Failed to delete configuration',
-        variant: 'destructive',
-      });
+      if (err?.response?.status === 401) {
+        toast({
+          title: 'Permission Denied',
+          description: 'The current user is not having the permission to make this action',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Delete failed',
+          description: err?.response?.data?.message || err.message || 'Failed to delete configuration',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
   const handleLogout = () => {
-    localStorage.clear();
+    logout();
     navigate('/');
   };
 
@@ -391,46 +454,122 @@ const Dashboard = () => {
               ) : tiersError ? (
                 <div className="text-red-600">{tiersError}</div>
               ) : (
-                <div className="overflow-x-auto w-full">
-                  <table className="min-w-full border bg-white rounded shadow">
-                    <thead>
-                      <tr className="bg-blue-100 text-blue-900">
-                        <th className="px-3 py-2 text-left">Tier Name</th>
-                        <th className="px-3 py-2">Active</th>
-                        <th className="px-3 py-2">Special</th>
-                        <th className="px-3 py-2">Min Order</th>
-                        <th className="px-3 py-2">Max Order</th>
-                        <th className="px-3 py-2">Order Online %</th>
-                        <th className="px-3 py-2">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tiers.map((tier, idx) => (
-                        <tr key={idx} className="border-t hover:bg-blue-50">
-                          <td className="px-3 py-2">{tier.tier_name}</td>
-                          <td className="px-3 py-2 text-center">{tier.is_active ? 'Yes' : 'No'}</td>
-                          <td className="px-3 py-2 text-center">{tier.is_special ? 'Yes' : 'No'}</td>
-                          <td className="px-3 py-2 text-center">{tier.no_of_purchase_from}</td>
-                          <td className="px-3 py-2 text-center">{tier.no_of_purchase_to}</td>
-                          <td className="px-3 py-2 text-center">{tier.constraints?.ORDER_ONLINE}</td>
-                          <td className="px-3 py-2 flex gap-2 justify-center">
-                            <button
-                              className="px-3 py-1 rounded bg-yellow-400 text-white font-semibold hover:bg-yellow-500 transition"
-                              onClick={() => handleEditTier(tier)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="px-3 py-1 rounded bg-red-500 text-white font-semibold hover:bg-red-600 transition"
-                              onClick={() => handleDeleteTier(tier.id || tier.tier_id)}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-6 w-full">
+                  {/* Active Tiers */}
+                  <div className="bg-white rounded-lg shadow-md border border-green-200">
+                    <div className="bg-green-100 px-4 py-3 rounded-t-lg border-b border-green-200">
+                      <h3 className="text-lg font-semibold text-green-800 flex items-center gap-2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        Active Tiers ({tiers.filter(tier => tier.is_active).length})
+                      </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead>
+                          <tr className="bg-green-50 text-green-900">
+                            <th className="px-3 py-3 text-left">Tier Name</th>
+                            <th className="px-3 py-3">Special</th>
+                            <th className="px-3 py-3">Min Order</th>
+                            <th className="px-3 py-3">Max Order</th>
+                            <th className="px-3 py-3">Order Online %</th>
+                            <th className="px-3 py-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tiers.filter(tier => tier.is_active).map((tier, idx) => (
+                            <tr key={idx} className="border-t border-green-100 hover:bg-green-50">
+                              <td className="px-3 py-3 font-medium">{tier.tier_name}</td>
+                              <td className="px-3 py-3 text-center">
+                                {tier.is_special ? (
+                                  <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">Special</span>
+                                ) : (
+                                  <span className="text-gray-500">Regular</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-3 text-center">{tier.no_of_purchase_from}</td>
+                              <td className="px-3 py-3 text-center">{tier.no_of_purchase_to}</td>
+                              <td className="px-3 py-3 text-center font-semibold text-green-600">
+                                {(tier.constraints?.ORDER_ONLINE * 100).toFixed(1)}%
+                              </td>
+                              <td className="px-3 py-3 flex gap-2 justify-center">
+                                <button
+                                  className="px-3 py-1 rounded bg-yellow-400 text-white font-semibold hover:bg-yellow-500 transition text-sm"
+                                  onClick={() => handleEditTier(tier)}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  className="px-3 py-1 rounded bg-red-500 text-white font-semibold hover:bg-red-600 transition text-sm"
+                                  onClick={() => handleDeleteTier(tier.id || tier.tier_id)}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Inactive Tiers */}
+                  {tiers.filter(tier => !tier.is_active).length > 0 && (
+                    <div className="bg-white rounded-lg shadow-md border border-gray-200">
+                      <div className="bg-gray-100 px-4 py-3 rounded-t-lg border-b border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+                          <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                          Inactive Tiers ({tiers.filter(tier => !tier.is_active).length})
+                        </h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full">
+                          <thead>
+                            <tr className="bg-gray-50 text-gray-700">
+                              <th className="px-3 py-3 text-left">Tier Name</th>
+                              <th className="px-3 py-3">Special</th>
+                              <th className="px-3 py-3">Min Order</th>
+                              <th className="px-3 py-3">Max Order</th>
+                              <th className="px-3 py-3">Order Online %</th>
+                              <th className="px-3 py-3">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tiers.filter(tier => !tier.is_active).map((tier, idx) => (
+                              <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50 opacity-75">
+                                <td className="px-3 py-3 font-medium text-gray-600">{tier.tier_name}</td>
+                                <td className="px-3 py-3 text-center">
+                                  {tier.is_special ? (
+                                    <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">Special</span>
+                                  ) : (
+                                    <span className="text-gray-500">Regular</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-3 text-center text-gray-600">{tier.no_of_purchase_from}</td>
+                                <td className="px-3 py-3 text-center text-gray-600">{tier.no_of_purchase_to}</td>
+                                <td className="px-3 py-3 text-center font-semibold text-gray-500">
+                                  {(tier.constraints?.ORDER_ONLINE * 100).toFixed(1)}%
+                                </td>
+                                <td className="px-3 py-3 flex gap-2 justify-center">
+                                  <button
+                                    className="px-3 py-1 rounded bg-yellow-400 text-white font-semibold hover:bg-yellow-500 transition text-sm"
+                                    onClick={() => handleEditTier(tier)}
+                                  >
+                                    Edit
+                                  </button>
+                                                                  <button
+                                  className="px-3 py-1 rounded bg-red-500 text-white font-semibold hover:bg-red-600 transition text-sm"
+                                  onClick={() => handleDeleteTier(tier.id || tier.tier_id)}
+                                >
+                                  Delete
+                                </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -453,32 +592,32 @@ const Dashboard = () => {
                   </select>
                 </div>
                 <div className="mb-8 p-4 rounded-lg bg-blue-50 border border-blue-200">
-                  <div className="font-semibold text-blue-900 mb-1 text-lg">Order Online</div>
-                  <div className="text-sm text-blue-700 mb-4">Provide required points and cashback reward amount ratio.</div>
+                  <div className="font-semibold text-blue-900 mb-1 text-lg">Order Online Rewards</div>
+                  <div className="text-sm text-blue-700 mb-4">Configure points required and cashback percentage for online orders.</div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block font-medium mb-1">Required Points</label>
+                      <label className="block font-medium mb-1">Points Required per Order</label>
                       <input name="requiredPoints" value={configForm.requiredPoints} onChange={handleConfigChange} className="w-full rounded border px-3 py-2 bg-white" required />
                     </div>
                     <div>
-                      <label className="block font-medium mb-1">Cashback Reward Amount Ratio</label>
+                      <label className="block font-medium mb-1">Cashback Percentage (%)</label>
                       <input name="cashbackReward" value={configForm.cashbackReward} onChange={handleConfigChange} className="w-full rounded border px-3 py-2 bg-white" required />
                     </div>
                   </div>
                 </div>
                 <div className="mb-8 p-4 rounded-lg bg-blue-50 border border-blue-200">
-                  <div className="font-semibold text-blue-900 mb-1 text-lg">Referral</div>
-                  <div className="text-sm text-blue-700 mb-4">Provide required points amount will customer get when referral his friend and sign up.</div>
+                  <div className="font-semibold text-blue-900 mb-1 text-lg">Referral Rewards</div>
+                  <div className="text-sm text-blue-700 mb-4">Points awarded when a customer refers a friend who signs up.</div>
                   <div>
-                    <label className="block font-medium mb-1">Required Points Amount</label>
+                    <label className="block font-medium mb-1">Points Awarded per Referral</label>
                     <input name="referralAmount" value={configForm.referralAmount} onChange={handleConfigChange} className="w-full rounded border px-3 py-2 bg-white" required />
                   </div>
                 </div>
                 <div className="mb-8 p-4 rounded-lg bg-blue-50 border border-blue-200">
-                  <div className="font-semibold text-blue-900 mb-1 text-lg">Review Product</div>
-                  <div className="text-sm text-blue-700 mb-4">Provide required points amount will customer get when review product.</div>
+                  <div className="font-semibold text-blue-900 mb-1 text-lg">Product Review Rewards</div>
+                  <div className="text-sm text-blue-700 mb-4">Points awarded when a customer writes a product review.</div>
                   <div>
-                    <label className="block font-medium mb-1">Required Points Amount</label>
+                    <label className="block font-medium mb-1">Points Awarded per Review</label>
                     <input name="reviewAmount" value={configForm.reviewAmount} onChange={handleConfigChange} className="w-full rounded border px-3 py-2 bg-white" required />
                   </div>
                 </div>
@@ -498,51 +637,133 @@ const Dashboard = () => {
               ) : configsError ? (
                 <div className="text-red-600">{configsError}</div>
               ) : (
-                <div className="overflow-x-auto w-full">
-                  <table className="min-w-full border bg-white rounded shadow">
-                    <thead>
-                      <tr className="bg-blue-100 text-blue-900">
-                        <th className="px-3 py-2 text-left">Description</th>
-                        <th className="px-3 py-2">Default Tier</th>
-                        <th className="px-3 py-2">Order Online</th>
-                        <th className="px-3 py-2">Referral</th>
-                        <th className="px-3 py-2">Review Product</th>
-                        <th className="px-3 py-2">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {configs.map((config, idx) => (
-                        <tr key={idx} className="border-t hover:bg-blue-50">
-                          <td className="px-3 py-2">{config.description}</td>
-                          <td className="px-3 py-2 text-center">{config.default_tier?.id}</td>
-                          <td className="px-3 py-2 text-center">
-                            Points: {config.constraints?.ORDER_ONLINE?.ratio_from}<br />
-                            Cashback: {config.constraints?.ORDER_ONLINE?.ratio_to}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {config.constraints?.REFERRAL?.amount}
-                          </td>
-                          <td className="px-3 py-2 text-center">
-                            {config.constraints?.REVIEW_PRODUCT?.amount}
-                          </td>
-                          <td className="px-3 py-2 flex gap-2 justify-center">
-                            <button
-                              className="px-3 py-1 rounded bg-yellow-400 text-white font-semibold hover:bg-yellow-500 transition"
-                              onClick={() => handleEditConfig(config)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="px-3 py-1 rounded bg-red-500 text-white font-semibold hover:bg-red-600 transition"
-                              onClick={() => handleDeleteConfig(config.id)}
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-6 w-full">
+                  {/* Active Configs */}
+                  <div className="bg-white rounded-lg shadow-md border border-green-200">
+                    <div className="bg-green-100 px-4 py-3 rounded-t-lg border-b border-green-200">
+                      <h3 className="text-lg font-semibold text-green-800 flex items-center gap-2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        Active Configurations ({configs.filter(config => config.is_active !== false).length})
+                      </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead>
+                          <tr className="bg-green-50 text-green-900">
+                            <th className="px-3 py-3 text-left">Default Tier</th>
+                            <th className="px-3 py-3">Description</th>
+                            <th className="px-3 py-3">Order Online</th>
+                            <th className="px-3 py-3">Referral</th>
+                            <th className="px-3 py-3">Review Product</th>
+                            <th className="px-3 py-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {configs.filter(config => config.is_active !== false).map((config, idx) => (
+                            <tr key={idx} className="border-t border-green-100 hover:bg-green-50">
+                              <td className="px-3 py-3 text-center font-medium">{config.default_tier?.tier_name || config.default_tier?.id}</td>
+                              <td className="px-3 py-3">{config.description}</td>
+                              <td className="px-3 py-3 text-center">
+                                <div className="text-sm">
+                                  <div className="font-medium text-green-600">Points: {config.constraints?.ORDER_ONLINE?.ratio_from}</div>
+                                  <div className="text-gray-600">Cashback: {config.constraints?.ORDER_ONLINE?.ratio_to}%</div>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 text-center">
+                                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                                  {config.constraints?.REFERRAL?.amount} pts
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-center">
+                                <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-medium">
+                                  {config.constraints?.REVIEW_PRODUCT?.amount} pts
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 flex gap-2 justify-center">
+                                <button
+                                  className="px-3 py-1 rounded bg-yellow-400 text-white font-semibold hover:bg-yellow-500 transition text-sm"
+                                  onClick={() => handleEditConfig(config)}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  className="px-3 py-1 rounded bg-red-500 text-white font-semibold hover:bg-red-600 transition text-sm"
+                                  onClick={() => handleDeleteConfig(config.id)}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Inactive Configs */}
+                  {configs.filter(config => config.is_active === false).length > 0 && (
+                    <div className="bg-white rounded-lg shadow-md border border-gray-200">
+                      <div className="bg-gray-100 px-4 py-3 rounded-t-lg border-b border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+                          <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                          Inactive Configurations ({configs.filter(config => config.is_active === false).length})
+                        </h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full">
+                          <thead>
+                            <tr className="bg-gray-50 text-gray-700">
+                              <th className="px-3 py-3 text-left">Default Tier</th>
+                              <th className="px-3 py-3">Description</th>
+                              <th className="px-3 py-3">Order Online</th>
+                              <th className="px-3 py-3">Referral</th>
+                              <th className="px-3 py-3">Review Product</th>
+                              <th className="px-3 py-3">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {configs.filter(config => config.is_active === false).map((config, idx) => (
+                              <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50 opacity-75">
+                                <td className="px-3 py-3 text-center font-medium text-gray-600">{config.default_tier?.tier_name || config.default_tier?.id}</td>
+                                <td className="px-3 py-3 text-gray-600">{config.description}</td>
+                                <td className="px-3 py-3 text-center">
+                                  <div className="text-sm">
+                                    <div className="font-medium text-gray-500">Points: {config.constraints?.ORDER_ONLINE?.ratio_from}</div>
+                                    <div className="text-gray-400">Cashback: {config.constraints?.ORDER_ONLINE?.ratio_to}%</div>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded-full text-xs font-medium">
+                                    {config.constraints?.REFERRAL?.amount} pts
+                                  </span>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded-full text-xs font-medium">
+                                    {config.constraints?.REVIEW_PRODUCT?.amount} pts
+                                  </span>
+                                </td>
+                                <td className="px-3 py-3 flex gap-2 justify-center">
+                                  <button
+                                    className="px-3 py-1 rounded bg-yellow-400 text-white font-semibold hover:bg-yellow-500 transition text-sm"
+                                    onClick={() => handleEditConfig(config)}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="px-3 py-1 rounded bg-gray-400 text-white font-semibold cursor-not-allowed text-sm opacity-50"
+                                    disabled
+                                    title="Cannot delete inactive configuration"
+                                  >
+                                    Delete
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </>

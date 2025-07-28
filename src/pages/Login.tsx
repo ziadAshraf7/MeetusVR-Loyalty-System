@@ -16,8 +16,8 @@ export const Login = () => {
   const { login } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [adminForm, setAdminForm] = useState({ email: '', password: '' , isEmployee : true , orgId : 0  });
-  const [userForm, setUserForm] = useState({ email: '', password: '' , isEmployee : false , orgId : 0 });
+  const [adminForm, setAdminForm] = useState({ email: '', password: '' , isEmployee : true , orgId : 2  });
+  const [userForm, setUserForm] = useState({ email: '', password: '' , isEmployee : false , orgId : 2 });
   const { user, isLoading : userLoading } = useAuth();
 
   // Signup form state
@@ -97,8 +97,8 @@ export const Login = () => {
   useEffect(() => {
     if(user == null) return;
     
-    if(user.role == 'admin') navigate('dashboard')
-      navigate('admin')
+    if(user.role == 'admin') navigate('/admin')
+    else navigate('/user-dashboard')
   },[userLoading])
 
   const handleLogin = async (role: 'admin' | 'user') => {
@@ -111,7 +111,7 @@ export const Login = () => {
         title: "Welcome back!",
         description: `Successfully logged in as ${role}`,
       });
-      navigate(role === 'admin' ? '/admin' : '/dashboard');
+      navigate(role === 'admin' ? '/admin' : '/user-dashboard');
     } catch (error) {
       toast({
         title: "Login failed",
@@ -146,7 +146,7 @@ export const Login = () => {
             <GradientCard className="bg-card border-0 shadow-2xl" glow>
               <CardHeader className="text-center pb-2">
                 <CardTitle>
-                  <span className="text-3xl md:text-4xl font-extrabold text-primary drop-shadow-lg tracking-tight" style={{textShadow: '0 2px 12px rgba(0,0,0,0.10)'}}>Organization Login</span>
+                  <span className="text-3xl md:text-4xl font-extrabold text-primary drop-shadow-lg tracking-tight" style={{textShadow: '0 2px 12px rgba(0,0,0,0.10)'}}><span className="text-cyan-500">Tseppas</span> Login</span>
                 </CardTitle>
                 <CardDescription>
                   <span className="text-base md:text-lg text-blue-900/80 font-medium block mt-2 mb-2">Sign in or create an account to continue</span>
@@ -190,16 +190,6 @@ export const Login = () => {
                         onChange={(e) => setUserForm(prev => ({ ...prev, password: e.target.value }))}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="user-password">organization id</Label>
-                      <Input
-                        id="orgId"
-                        type="Number"
-                        placeholder="Enter your organization id"
-                        value={userForm.orgId}
-                        onChange={(e) => setUserForm(prev => ({ ...prev, orgId: Number(e.target.value)  }))}
-                      />
-                    </div>
                     <Button
                       className="w-full bg-gradient-primary hover:shadow-glow"
                       onClick={() => handleLogin('user')}
@@ -228,16 +218,6 @@ export const Login = () => {
                         placeholder="Enter admin password"
                         value={adminForm.password}
                         onChange={(e) => setAdminForm(prev => ({ ...prev, password: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="user-password">organization id</Label>
-                      <Input
-                        id="orgId"
-                        type="number"
-                        placeholder="Enter your organization id"
-                        value={userForm.orgId}
-                        onChange={(e) => setUserForm(prev => ({ ...prev, orgId: Number(e.target.value)}))}
                       />
                     </div>
                     <Button
