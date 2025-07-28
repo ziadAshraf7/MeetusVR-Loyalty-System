@@ -33,6 +33,7 @@ const Dashboard = () => {
   const [tiersError, setTiersError] = useState('');
 
   // Create Config form state
+  const [editingConfigId, setEditingConfigId] = useState(null);
   const [configForm, setConfigForm] = useState({
     description: '',
     defaultTierId: '',
@@ -139,7 +140,7 @@ const Dashboard = () => {
           REFERRAL: 1,
           REVIEW_PRODUCT: 1,
         },
-        ...(editingTierId ? { tier_id: editingTierId } : {}),
+        ...(editingTierId ? { id: editingTierId } : {}),
       };
       console.log('Create/Update Tier request body:', body);
       if (!user?.token) {
@@ -151,7 +152,7 @@ const Dashboard = () => {
         return;
       }
       await api.post(
-        yeshteryApi + 'loyalty/tier/update',
+        'https://api-yeshtery.dev.meetusvr.com/v1/loyalty/tier/update',
         body,
         { headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json', 'X-Skip-401-Interceptor': 'true' } }
       );
@@ -260,7 +261,7 @@ const Dashboard = () => {
       const body = {
         description: configForm.description,
         default_tier: { id: Number(configForm.defaultTierId) },
-        operation: 'create',
+        operation: editingConfigId ? 'update' : 'create',
         constraints: {
           ORDER_ONLINE: {
             ratio_from: configForm.requiredPoints,
@@ -277,6 +278,7 @@ const Dashboard = () => {
             amount: configForm.reviewAmount,
           },
         },
+        ...(editingConfigId ? { id: editingConfigId } : {}),
       };
       if (!user?.token) {
         toast({ title: 'Not authenticated', description: 'No user token found.', variant: 'destructive' });
@@ -288,7 +290,10 @@ const Dashboard = () => {
         body,
         { headers: { Authorization: `Bearer ${user.token}`, 'Content-Type': 'application/json', 'X-Skip-401-Interceptor': 'true' } }
       );
-      toast({ title: 'Config created!', description: 'The configuration was created successfully.' });
+      toast({ 
+        title: editingConfigId ? 'Config updated!' : 'Config created!', 
+        description: editingConfigId ? 'The configuration was updated successfully.' : 'The configuration was created successfully.' 
+      });
       setConfigForm({
         description: '',
         defaultTierId: '',
@@ -297,6 +302,24 @@ const Dashboard = () => {
         referralAmount: '50',
         reviewAmount: '50',
       });
+      setEditingConfigId(null);
+      
+      // Refresh the list if on manage-tier-configs
+      if (activeSection === 'manage-tier-configs') {
+        setConfigsLoading(true);
+        try {
+          const res = await api.get(
+            yeshteryApi + 'loyalty/config/list',
+            { headers: { Authorization: `Bearer ${user.token}`, 'X-Skip-401-Interceptor': 'true' } }
+          );
+          setConfigs(res.data);
+        } catch (err) {
+          if (err?.response?.status === 401) {
+            setConfigsError('The current user is not having the permission to make this action');
+          }
+        }
+        setConfigsLoading(false);
+      }
     } catch (error) {
       if (error?.response?.status === 401) {
         toast({
@@ -315,6 +338,7 @@ const Dashboard = () => {
 
   const handleEditConfig = (config) => {
     setActiveSection('create-tier-config');
+    setEditingConfigId(config.id);
     setConfigForm({
       description: config.description || '',
       defaultTierId: config.default_tier?.id?.toString() || '',
@@ -374,6 +398,32 @@ const Dashboard = () => {
     }
   };
 
+  const handleSidebarClick = (key) => {
+    setActiveSection(key);
+    // Reset editing states when switching tabs
+    setEditingTierId(null);
+    setEditingConfigId(null);
+    
+    // Reset forms to default values
+    setTierForm({
+      tierName: '',
+      isActive: true,
+      isSpecial: false,
+      noOfPurchaseFrom: '',
+      noOfPurchaseTo: '',
+      cashBackPercentage: '',
+    });
+    
+    setConfigForm({
+      description: '',
+      defaultTierId: '',
+      requiredPoints: '',
+      cashbackReward: '',
+      referralAmount: '50',
+      reviewAmount: '50',
+    });
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -387,7 +437,7 @@ const Dashboard = () => {
         {sidebarItems.map(item => (
           <button
             key={item.key}
-            onClick={() => setActiveSection(item.key)}
+            onClick={() => handleSidebarClick(item.key)}
             className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all duration-150 hover:bg-blue-100/80 focus:outline-none ${activeSection === item.key ? 'bg-gradient-to-br from-blue-600 to-blue-400 text-white shadow-lg' : 'text-blue-700'}`}
             title={item.label}
           >
@@ -493,8 +543,8 @@ const Dashboard = () => {
                               </td>
                               <td className="px-3 py-3 flex gap-2 justify-center">
                                 <button
-                                  className="px-3 py-1 rounded bg-yellow-400 text-white font-semibold hover:bg-yellow-500 transition text-sm"
-                                  onClick={() => handleEditTier(tier)}
+                                  className="px-3 py-1 rounded bg-gray-400 text-white font-semibold cursor-not-allowed text-sm opacity-50"
+                                  disabled
                                 >
                                   Edit
                                 </button>
@@ -556,12 +606,12 @@ const Dashboard = () => {
                                   >
                                     Edit
                                   </button>
-                                                                  <button
-                                  className="px-3 py-1 rounded bg-red-500 text-white font-semibold hover:bg-red-600 transition text-sm"
-                                  onClick={() => handleDeleteTier(tier.id || tier.tier_id)}
-                                >
-                                  Delete
-                                </button>
+                                  <button
+                                    className="px-3 py-1 rounded bg-red-500 text-white font-semibold hover:bg-red-600 transition text-sm"
+                                    onClick={() => handleDeleteTier(tier.id || tier.tier_id)}
+                                  >
+                                    Delete
+                                  </button>
                                 </td>
                               </tr>
                             ))}
@@ -744,8 +794,8 @@ const Dashboard = () => {
                                 </td>
                                 <td className="px-3 py-3 flex gap-2 justify-center">
                                   <button
-                                    className="px-3 py-1 rounded bg-yellow-400 text-white font-semibold hover:bg-yellow-500 transition text-sm"
-                                    onClick={() => handleEditConfig(config)}
+                                    className="px-3 py-1 rounded bg-gray-400 text-white font-semibold cursor-not-allowed text-sm opacity-50"
+                                    disabled
                                   >
                                     Edit
                                   </button>
