@@ -11,6 +11,7 @@ import { AdminDashboard } from "@/pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 import { ShopCheckInLogin } from "@/pages/ShopCheckInLogin";
 import Dashboard from './pages/Dashboard';
+import ReferralSignup from '@/pages/ReferralSignup';
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/refferal-signup" element={<ReferralSignup />} />
             <Route 
               path="/user-dashboard" 
               element={
