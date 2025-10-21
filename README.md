@@ -1,73 +1,84 @@
-# Welcome to your Lovable project
+# 🏆 Loyalty System Dashboard (Visualization)
 
-## Project info
+A **React-based visualization app** built to demonstrate the **Loyalty System** I developed at **Meetus VR Company** using **Java Spring Boot** and **SQL databases**.  
+This frontend is designed **only to visualize and showcase** the backend logic, integrations, and architecture of the loyalty system — including **Apple Wallet** and **Google Wallet** integration.
 
-**URL**: https://lovable.dev/projects/06b18e02-34bd-4356-bde0-1b5a7d6180af
+---
 
-## How can I edit this code?
+## 🚀 Overview
 
-There are several ways of editing your application.
+This React application serves as a **dashboard interface** to visualize the backend features of the loyalty system built for multiple organizations.  
+Each organization has its own **tiers, offers, referral system, and reward configurations**, and users interact with the system through **wallet integrations and loyalty actions**.
 
-**Use Lovable**
+---
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/06b18e02-34bd-4356-bde0-1b5a7d6180af) and start prompting.
+## ✨ Key Features
 
-Changes made via Lovable will be committed automatically to this repo.
+### 🏢 Organization Dashboard (Admin Panel)
+- Manage multiple organizations within one platform.
+- Create, edit, and delete **loyalty tiers** (e.g., Bronze, Silver, Gold, Platinum).
+- Configure tier rules and actions, such as:
+  - Awarding points for orders above a specific amount.
+  - Assigning points for completing actions (e.g., writing a product review).
+- Manage **offers**, **discounts**, and **referral bonuses** per tier.
+- View and track user activity, tier progress, and reward performance.
 
-**Use your preferred IDE**
+---
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 👥 User and Employee Login
+- Each user logs in under their specific organization.
+- Two main roles:
+  - **Customer:** can view their points, tier, and wallet.
+  - **Employee:** can manage loyalty wallet customization, referral QR codes, and wallet designs.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+---
 
-Follow these steps:
+### 📱 Loyalty Wallet (Apple & Google Integration)
+- Integrated with **Apple Wallet** and **Google Wallet** for digital loyalty cards.
+- Wallet displays:
+  - User **tier**, **points**, and **offers**.
+  - **QR code** for referrals or in-store actions.
+  - **PIN code** for redeeming discounts or points at checkout.
+- Each tier has a **custom wallet design** (colors, branding, and reward info) controlled by the organization.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+---
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### 🧾 Wallet Scanning Section
+- After logging in, users can **scan their digital loyalty wallet** through a QR code scanner built into the dashboard.
+- This allows users to sync or verify their wallet details directly from the web interface.
+- The scanned wallet displays current tier, total points, and available offers.
 
-# Step 3: Install the necessary dependencies.
-npm i
+---
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+### 🎁 Referral & Reward System
+- Employees can share unique referral QR codes.
+- Points are awarded when:
+  - A referred customer signs up.
+  - A referred customer completes a purchase.
+- Track referral count and total earned points.
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### 🏬 Shop Check-In System
+- Each shop branch has its own **QR code** for customer check-ins.
+- Customers earn instant points for scanning the code upon entry.
+- Customers can redeem points at checkout using their wallet **PIN code** for discounts.
 
-**Use GitHub Codespaces**
+---
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 🧩 Tech Stack
 
-## What technologies are used for this project?
+| Layer | Technology |
+|-------|-------------|
+| **Frontend (Visualization)** | React.js, React Router, Tailwind CSS |
+| **Backend (Core System)** | Java Spring Boot |
+| **Database** | MySQL |
+| **Wallet Integration** | Apple Wallet, Google Wallet |
+| **Authentication** | JWT |
+| **State Management** | Redux Toolkit |
+| **API Communication** | REST (Axios) |
 
-This project is built with:
+---
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## 🧠 System Architecture
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/06b18e02-34bd-4356-bde0-1b5a7d6180af) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
