@@ -66,19 +66,3 @@ Each organization has its own **tiers, offers, referral system, and reward confi
 
 ---
 
-## 🧩 Tech Stack
-
-| Layer | Technology |
-|-------|-------------|
-| **Frontend (Visualization)** | React.js, React Router, Tailwind CSS |
-| **Backend (Core System)** | Java Spring Boot |
-| **Database** | MySQL |
-| **Wallet Integration** | Apple Wallet, Google Wallet |
-| **Authentication** | JWT |
-| **State Management** | Redux Toolkit |
-| **API Communication** | REST (Axios) |
-
----
-
-## 🧠 System Architecture
-
